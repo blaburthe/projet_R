@@ -6,23 +6,52 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+```{r}
+install.packages("tibble")
+update.packages("ellipsis")
+library(tibble)
+library(dplyr)
+library(DT)
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+pacman::p_load(DT, data.table)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+data=tibble()
 
-```{r cars}
-summary(cars)
+#read first xls file (2015)
+
+data_j=readxl::read_xls(paste0("C:\\Users\\bapti\\Documents\\Boulot\\S7\\R\\projet\\",
+                             "base-ic-evol-struct-pop-2015.xls"),sheet="IRIS", skip=5)
+
+non_year_vars = names(data_j)[0:12]
+year_vars = names(data_j)[13:length(data_j)]
+
+#drop the characters ,nb 2 and 3 representing the year
+year_vars = paste0(substring(year_vars,0,1),substring(year_vars,4))
+
+names(data_j)=c(non_year_vars,year_vars)
+
+#add the variable "annee"
+data_j$annee=2015 
+data=bind_rows(data,data_j)
+
+
+#read other xlsx files (2016,2017)
+
+for (annee in 2016:2017){
+  data_i = readxl::read_xlsx(paste0("C:\\Users\\bapti\\Documents\\Boulot\\S7\\",
+                                               "R\\projet\\base-ic-evol-struct-pop-",
+                                               annee,".xlsx"), sheet="IRIS", skip=5)
+  non_year_vars = names(data_i)[0:12]
+  #drop the characters ,nb 2 and 3 representing the year
+  year_vars = names(data_i)[13:length(data_i)] 
+  year_vars = paste0(substring(year_vars,0,1),substring(year_vars,4))
+
+  names(data_i)=c(non_year_vars,year_vars)
+ 
+  data_i$annee=annee
+  data=bind_rows(data,data_i)
+}
+  sessionInfo()
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
