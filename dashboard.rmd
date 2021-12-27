@@ -4,23 +4,94 @@ output:
   flexdashboard::flex_dashboard:
     orientation: rows
 ---
-
-
-#Exploration
-
 ```{r}
-setwd("C:\\Users\\bapti\\Documents\\Boulot\\S7\\R\\projet")
-source("test.R")
-c=fooABC(5)
-print(c)
+source("datatable_generation.R")
+data <- get_pop_data()
+
 ```
 
+```{r}
+data_revenus <- get_pop_wage_data(precision="DEP", pop_data=data)
+```
 
-##Row {.tabset}
+# Exploration
 
-###Données
+## Row{.tabset}
+
+### Carte des revenus 1
+
+```{r}
+
+library("rgdal")
+library("rgeos")
+library("maptools")
+library("ggplot2")
+library("dplyr")
+library("stringr")
+library("gpclib")
+library("mapproj")
+library("leaflet")
+library("scales")
+
+#get vestorial file
+dept <- readOGR("datas/dpt/DEPARTEMENT.shp", layer= "DEPARTEMENT")
+
+#fit it into a dataframe to merge values to show on map
+dept.df <- fortify(spTransform(dept, CRS("+proj=longlat +datum=WGS84")),region="CODE_DEPT")
+
+#dept.df$id=as.numeric(as.character(dept.df$id))
+#dept.df$id=trunc(dept.df$id/10)
+
+#select data to merge with
+by.dept=data_revenus[which(data_revenus$annee==2015),]
+by.dept=by.dept[c("DEP", "SNHM19")]
+
+#by.dept$DEP=as.numeric(as.character(by.dept$DEP))
+#by.dept$DEP=trunc(by.dept$DEP/10)
+
+dept.df2<-merge(by.dept, dept.df, by.x="DEP", by.y="id")
+
+#plot the map
+ggplot() +
+  geom_polygon(data = dept.df2, 
+               aes(x = long, y = lat, group = group, fill = SNHM19),
+               color = "black") + 
+  coord_map() +
+  scale_fill_distiller(palette = "Spectral",
+                       breaks = pretty_breaks(n = 20), direction = -1)+
+  guides(fill = guide_legend(reverse = TRUE))+
+  theme_void()
 
 
+```
 
+### Carte des revenus 2 (interactive)
 
-#Analyses
+```{r}
+#Map interactive
+library("leaflet")
+
+dept.interactive=spTransform(dept, CRS("+proj=longlat +datum=WGS84"))
+
+#dept.interactive$CODE_DEPT=as.numeric(as.character(dept.interactive$CODE_DEPT))
+
+dept.interactive= sp::merge(dept.interactive, by.dept,by.x="CODE_DEPT",by.y="DEP")
+
+#palette <- colorQuantile("Greens", dept.interactive$SNHM19.x, n=15)
+palette <- colorNumeric(palette = c("#FACABD","white","#1E8C32"), domain=dept.interactive$SNHM19)
+
+popup_info <- paste0("<strong>Departement: </strong>", 
+                    dept.interactive$NOM_DEPT," - ", dept.interactive$CODE_DEPT,
+                    "<br><strong>SNHM19:  </strong>", 
+                    round(dept.interactive$SNHM19), digits=2)
+
+leaflet(data = dept.interactive) %>%
+  addTiles() %>%
+  addPolygons(fillColor = palette(dept.interactive$SNHM19),
+              fillOpacity=0.8,
+              color = "Black", 
+              weight = 1,
+              stroke = TRUE,
+              popup=popup_info)
+
+```

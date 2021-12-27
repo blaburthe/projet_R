@@ -18,9 +18,7 @@ get_pop_data <- function(){
   data=tibble()
   
   #read first xls file (2015)
-  
-  data_j=readxl::read_xls(paste0("C:\\Users\\bapti\\Documents\\Boulot\\S7\\R\\projet\\",
-                                 "base-ic-evol-struct-pop-2015.xls"),sheet="IRIS", skip=5)
+  data_j=readxl::read_xls(paste0("datas/base-ic-evol-struct-pop-2015.xls"),sheet="IRIS", skip=5)
   
   non_year_vars = names(data_j)[0:12]
   year_vars = names(data_j)[13:length(data_j)]
@@ -38,8 +36,7 @@ get_pop_data <- function(){
   #read other xlsx files (2016,2017)
   
   for (annee in 2016:2017){
-    data_i = readxl::read_xlsx(paste0("C:\\Users\\bapti\\Documents\\Boulot\\S7\\",
-                                      "R\\projet\\base-ic-evol-struct-pop-",
+    data_i = readxl::read_xlsx(paste0("datas/base-ic-evol-struct-pop-",
                                       annee,".xlsx"), sheet="IRIS", skip=5)
     non_year_vars = names(data_i)[0:12]
     #drop the characters ,nb 2 and 3 representing the year
@@ -64,8 +61,7 @@ get_pop_wage_data <- function(precision="REG", pop_data=NULL){
     pop_data=get_pop_data()
   }
   #[WARNING] data is skewed; population data from 2015-17 was merged with 2019 salaries
-  data_wage <- readxl::read_xlsx(paste0("C:\\Users\\bapti\\Documents\\Boulot\\S7\\R\\projet\\",
-                                        "base-cc-bases-tous-salaries-2019.xlsx"),sheet=precision, skip=5)
+  data_wage <- readxl::read_xlsx(paste0("datas/base-cc-bases-tous-salaries-2019.xlsx"),sheet=precision, skip=5)
   vars = colnames(pop_data)
   
   if (precision == "REG"){
