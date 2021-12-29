@@ -3,95 +3,186 @@ title: "dashboard"
 output:
   flexdashboard::flex_dashboard:
     orientation: rows
+    vertical_layout: fill
+  runtime: shiny
 ---
-```{r}
-source("datatable_generation.R")
-data <- get_pop_data()
 
-```
-
-```{r}
-data_revenus <- get_pop_wage_data(precision="DEP", pop_data=data)
-```
-
-# Exploration
-
-## Row{.tabset}
-
-### Carte des revenus 1
-
-```{r}
-
+```{r setup, include=FALSE}
+library("flexdashboard")
+library("shiny")
+library("dplyr")
 library("rgdal")
 library("rgeos")
 library("maptools")
 library("ggplot2")
-library("dplyr")
 library("stringr")
 library("gpclib")
 library("mapproj")
 library("leaflet")
 library("scales")
+library("magrittr")
+source("datatable_generation.R")
+```
 
+```{r data}
+data_pop <- get_pop_data()
+data_pop_revenus <- get_pop_wage_data(precision="DEP", pop_data=data_pop)
+data_pop_revenus_COM <- get_pop_wage_data(precision="COM", pop_data = data_pop)
+data_revenus <- get_wage_data(precision="DEP") %>% rename(DEP=CODGEO)
+revenus_categories <- colnames(data_pop_revenus)[77:100]
+population_categories <- colnames(data_pop[13:84])
+
+#Maps :
 #get vestorial file
-dept <- readOGR("datas/dpt/DEPARTEMENT.shp", layer= "DEPARTEMENT")
+dept <- readOGR("datas/dpt/DEPARTEMENT.shp", layer= "DEPARTEMENT", verbose=FALSE)
 
 #fit it into a dataframe to merge values to show on map
 dept.df <- fortify(spTransform(dept, CRS("+proj=longlat +datum=WGS84")),region="CODE_DEPT")
 
-#dept.df$id=as.numeric(as.character(dept.df$id))
-#dept.df$id=trunc(dept.df$id/10)
 
-#select data to merge with
-by.dept=data_revenus[which(data_revenus$annee==2015),]
-by.dept=by.dept[c("DEP", "SNHM19")]
-
-#by.dept$DEP=as.numeric(as.character(by.dept$DEP))
-#by.dept$DEP=trunc(by.dept$DEP/10)
-
-dept.df2<-merge(by.dept, dept.df, by.x="DEP", by.y="id")
-
-#plot the map
-ggplot() +
-  geom_polygon(data = dept.df2, 
-               aes(x = long, y = lat, group = group, fill = SNHM19),
-               color = "black") + 
-  coord_map() +
-  scale_fill_distiller(palette = "Spectral",
-                       breaks = pretty_breaks(n = 20), direction = -1)+
-  guides(fill = guide_legend(reverse = TRUE))+
-  theme_void()
-
-
-```
-
-### Carte des revenus 2 (interactive)
-
-```{r}
 #Map interactive
-library("leaflet")
-
 dept.interactive=spTransform(dept, CRS("+proj=longlat +datum=WGS84"))
 
-#dept.interactive$CODE_DEPT=as.numeric(as.character(dept.interactive$CODE_DEPT))
+#Données sur les communes trop grosses pour afficher sur des cartes (performances exécrables)
 
-dept.interactive= sp::merge(dept.interactive, by.dept,by.x="CODE_DEPT",by.y="DEP")
+#coms <- readOGR("datas/communes/COMMUNE.shp", layer= "COMMUNE", verbose=FALSE)
+#coms.df <- fortify(spTransform(coms, CRS("+proj=longlat +datum=WGS84")),region="INSEE_COM")
+#coms.interactive=spTransform(coms, CRS("+proj=longlat +datum=WGS84"))
+```
 
-#palette <- colorQuantile("Greens", dept.interactive$SNHM19.x, n=15)
-palette <- colorNumeric(palette = c("#FACABD","white","#1E8C32"), domain=dept.interactive$SNHM19)
 
-popup_info <- paste0("<strong>Departement: </strong>", 
+# Exploration
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+  selectInput("revenu_cat", label="Sélection de la catégorie de revenu", choices=revenus_categories)
+```
+
+
+Row
+-----------------------------------------------------------------------
+
+### Cartes des revenus par region
+
+```{r}
+
+dept.df2<-merge(data_revenus, dept.df, by.x="DEP", by.y="id")
+
+#plot the map
+renderPlot({ggplot() +
+  geom_polygon(data = dept.df2, 
+               aes(x = long, y = lat, group = group, fill = .data[[input$revenu_cat]]),
+               color = "black") + 
+  coord_map() +
+  scale_fill_gradient(high="#ffa600", low="#2f4b7c")+
+  guides(fill = guide_legend(title=input$revenu_cat,reverse = TRUE))+
+  theme_void()
+})
+```
+
+### Carte des revenus par région
+
+```{r}
+dept.interactive= sp::merge(dept.interactive, data_revenus,by.x="CODE_DEPT",by.y="DEP")
+renderLeaflet({
+  
+  pal<-colorNumeric(palette = c("#003f5c","white","#ffa600"), domain=(dept.interactive %>% extract2(input$revenu_cat)))
+  
+  popup_info <- paste0("<strong>Departement: </strong>", 
                     dept.interactive$NOM_DEPT," - ", dept.interactive$CODE_DEPT,
-                    "<br><strong>SNHM19:  </strong>", 
-                    round(dept.interactive$SNHM19), digits=2)
-
-leaflet(data = dept.interactive) %>%
+                    "<br><strong>",input$revenu_cat,":  </strong>",
+                    round(dept.interactive %>% extract2(input$revenu_cat), digits=2))
+  
+  leaflet(data = dept.interactive) %>%
   addTiles() %>%
-  addPolygons(fillColor = palette(dept.interactive$SNHM19),
+  addPolygons(fillColor = pal(magrittr::extract2(dept.interactive, input$revenu_cat)) ,
               fillOpacity=0.8,
               color = "Black", 
               weight = 1,
               stroke = TRUE,
               popup=popup_info)
-
+})
 ```
+
+### Revenus par communes
+
+```{r}
+# Affecte la performance de façon excessive 
+# coms.interactive= sp::merge(coms.interactive, data_pop_revenus_COM[which(data_pop_revenus_COM$annee==2015),],by.x="INSEE_COM",by.y="COM")
+# 
+# renderLeaflet({
+# 
+#   pal<-colorNumeric(palette = c("#003f5c","white","#ffa600"), domain=(coms.interactive %>% extract2(input$revenu_cat)))
+# 
+#   popup_info <- paste0("<strong>Commune: </strong>",
+#                     coms.interactive$NOM_DEPT," - ", coms.interactive$CODE_COM,
+#                     "<br><strong>",input$revenu_cat,":  </strong>",
+#                     round(coms.interactive %>% extract2(input$revenu_cat), digits=2))
+# 
+#   leaflet(data = coms.interactive) %>%
+#   addTiles() %>%
+#   addPolygons(fillColor = pal(magrittr::extract2(coms.interactive, input$revenu_cat)) ,
+#               fillOpacity=0.8,
+#               color = "Black",
+#               weight = 1,
+#               stroke = TRUE,
+#               popup=popup_info)
+# })
+```
+
+
+# Population
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+selectInput("pop_cat", label="Sélection de la catégorie de population", choices=population_categories)
+selectInput("annee_sel", label="Sélection de la catégorie de l'année", choices=c("2015","2016","2017"))
+```
+
+
+Row
+-----------------------------------------------------------------------
+
+### Carte de la population
+
+```{r}
+renderPlot({ggplot() +
+  geom_polygon(data = merge(data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),], dept.df, by.x="DEP", by.y="id"), 
+               aes(x = long, y = lat, group = group, fill = .data[[input$pop_cat]]),
+               color = "black") + 
+  coord_map() +
+  scale_fill_gradient(low="#003f5c",high="#d45087")+
+  guides(fill = guide_legend(title=input$pop_cat,reverse = TRUE))+
+  theme_void()
+})
+```
+
+### Carte population intéractive
+
+```{r}
+#Code ignoble en terme d'opti, mais dautre solution que d'incorporer le merge de dept.interactive dans les fonction, sinon il n'était pas updaté par shiny
+renderLeaflet({
+  
+  pal<-colorNumeric(palette = c("#003f5c","white","#d45087"), domain=(dept.interactive %>% extract2(input$pop_cat)))
+  
+  popup_info <- paste0("<strong>Departement: </strong>", 
+                    dept.interactive$NOM_DEPT," - ", dept.interactive$CODE_DEPT,
+                    "<br><strong>",input$pop_cat,":  </strong>",
+                    trunc(sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP") %>% extract2(input$pop_cat)))
+  
+  leaflet(data = sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP")) %>%
+  addTiles() %>%
+  addPolygons(fillColor = pal(magrittr::extract2(sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP"), input$pop_cat)) ,
+              fillOpacity=0.8,
+              color = "Black", 
+              weight = 1,
+              stroke = TRUE,
+              popup=popup_info)
+})
+```
+
+

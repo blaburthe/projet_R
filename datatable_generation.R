@@ -52,16 +52,22 @@ get_pop_data <- function(){
 }
 
 
-## Returns pop (either by dep or reg) data merged with salaries   
-get_pop_wage_data <- function(precision="REG", pop_data=NULL){
-  if(!(precision %in% c("REG", "DEP"))){
-    stop("Precision has to be either 'REG' or 'DEP'")
-  }
-  if (is.null(pop_data)){
-    pop_data=get_pop_data()
+##Returns wage data
+get_wage_data <- function(precision="REG"){
+  if(!(precision %in% c("REG", "DEP", "COM"))){
+    stop("Precision has to be either 'REG', 'DEP' or 'COM'")
   }
   #[WARNING] data is skewed; population data from 2015-17 was merged with 2019 salaries
   data_wage <- readxl::read_xlsx(paste0("datas/base-cc-bases-tous-salaries-2019.xlsx"),sheet=precision, skip=5)
+  return(data_wage)
+}
+
+## Returns pop (either by dep or reg) data merged with salaries   
+get_pop_wage_data <- function(precision="REG", pop_data=NULL){
+  data_wage <- get_wage_data(precision)
+  if (is.null(pop_data)){
+    pop_data=get_pop_data()
+  }
   vars = colnames(pop_data)
   
   if (precision == "REG"){
@@ -71,12 +77,20 @@ get_pop_wage_data <- function(precision="REG", pop_data=NULL){
       summarise_all(sum)
     data_wage <- data_wage %>% rename(REG = CODGEO)
   }
-  else{
+  else if(precision =="DEP"){
     vars <- vars[c(seq.int(-12,-4),-1)] #remove everything not groupable by region (=keep only pop vals, dep and reg )
     new_data <- pop_data[vars] %>%
       group_by(REG,DEP,annee) %>%
       summarise_all(sum)
     data_wage <- data_wage %>% rename(DEP = CODGEO)
+  }
+  else{
+    vars <- vars[c(seq.int(-12,-6),-4,-1)] #remove everything not groupable by region (=keep only pop vals, com, dep and reg )
+    new_data <- pop_data[vars] %>%
+      group_by(REG,DEP,COM,annee) %>%
+      summarise_all(sum)
+    data_wage <- data_wage %>% rename(COM = CODGEO)
+    
   }
   
   data_pop_wage <- merge(new_data,data_wage,by=precision)
