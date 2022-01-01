@@ -2,7 +2,7 @@
 title: "dashboard"
 output:
   flexdashboard::flex_dashboard:
-    orientation: rows
+    orientation: columns
     vertical_layout: fill
   runtime: shiny
 ---
@@ -27,8 +27,9 @@ source("datatable_generation.R")
 ```{r data}
 data_pop <- get_pop_data()
 data_pop_revenus <- get_pop_wage_data(precision="DEP", pop_data=data_pop)
-data_pop_revenus_COM <- get_pop_wage_data(precision="COM", pop_data = data_pop)
+#data_pop_revenus_COM <- get_pop_wage_data(precision="COM", pop_data = data_pop)
 data_revenus <- get_wage_data(precision="DEP") %>% rename(DEP=CODGEO)
+labels_revenus <- get_wage_labels()
 revenus_categories <- colnames(data_pop_revenus)[77:100]
 population_categories <- colnames(data_pop[13:84])
 
@@ -61,7 +62,7 @@ Column {.sidebar}
 ```
 
 
-Row
+Column
 -----------------------------------------------------------------------
 
 ### Cartes des revenus par region
@@ -185,4 +186,68 @@ renderLeaflet({
 })
 ```
 
+# TOP rémunération 1
+
+Column {.sidebar}
+------
+
+```{r}
+selectInput("revenu_cat2", label="Sélection de la catégorie de revenu", choices=revenus_categories)
+```
+
+Row {.tabset}
+------
+
+### Top rémunération des catégories sociales
+
+#### Tab 1
+
+```{r}
+# top 8 des catégories socio les mieux rémunérées (en moyenne)
+
+moyennes = data.frame(colMeans(data_revenus[c(-1,-2)])) %>%
+  rename(valeur_moyenne=1) %>% arrange(desc(valeur_moyenne))
+moyennes$categorie <- row.names(moyennes)
+moyennes <- head(moyennes,8)
+
+description <- merge(moyennes, labels_revenus, by.x="categorie", by.y="VAR_ID") %>%
+  rename(Description=VAR_LIB_LONG) %>%
+  select(-VAR_LIB) %>%
+  arrange(desc(valeur_moyenne)) 
+datatable(description)
+
+```
+
+#### Chart1
+
+```{r}
+ggplot(aes(x =reorder(categorie, -valeur_moyenne), y=valeur_moyenne), data=moyennes) + geom_bar(stat='identity', fill = c("#ffa600","#ff7c43","#f95d6a","#d45087","#a05195","#665191","#2f4b7c","#003f5c")) +
+  labs(x="Catégorie sociale", y="Salaire net horaire moyen")
+```
+
+### Top des départements les mieux rémunérés
+
+#### Tab2
+
+```{r}
+#5 départements avec salaire le plus élevé selon catégorie pop sélectionnées
+
+renderDataTable({head(arrange(data_revenus[c("DEP", "LIBGEO", input$revenu_cat2 )],desc(.data[[input$revenu_cat2]])), 5)})
+
+```
+
+#### Chart 2
+
+```{r}
+#départements concerné
+renderPlot({ggplot() +
+  geom_polygon(data = dept.df2 %>% add_column(in_top= (dept.df2$DEP %in% extract2(head(arrange(data_revenus,desc(.data[[input$revenu_cat2]])), 5), "DEP"))), 
+               aes(x = long, y = lat, group = group, fill = .data$in_top),
+               color = "black") + 
+  coord_map() +
+  scale_fill_manual(values = c("TRUE"="#ffa600", "FALSE"="#2f4b7c")) +
+  guides(fill = "none")+
+  theme_void()
+})
+```
 

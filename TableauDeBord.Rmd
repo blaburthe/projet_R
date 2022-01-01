@@ -1,0 +1,282 @@
+---
+title: "DashBoard"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+  runtime: shiny
+---
+<style>                     
+.navbar {
+  background-color:#003f5c;
+  border-color:#003f5c;
+}
+.navbar-brand {
+color:#ffa600!important;
+}
+navbar-inverse .navbar-nav > li > a:hover,
+.navbar-inverse .navbar-nav > li > a:focus {
+    background-color: #ffa600;
+    color: #003f5c;
+}
+.navbar-inverse .navbar-nav > .active > a,
+.navbar-inverse .navbar-nav > .active > a:hover,
+.navbar-inverse .navbar-nav > .active > a:focus {
+  color: #003f5c;
+  background-color: #ffa600;
+}
+.navbar-inverse .navbar-toggle:hover,
+.navbar-inverse .navbar-toggle:focus {
+  background-color: #ffa600;
+}
+.navbar-inverse .navbar-collapse,
+.navbar-inverse .navbar-form {
+  border-color: #ffa600;
+}
+</style> 
+
+```{r setup, include=FALSE}
+library("flexdashboard")
+library("shiny")
+library("dplyr")
+library("rgdal")
+library("rgeos")
+library("maptools")
+library("ggplot2")
+library("stringr")
+library("gpclib")
+library("mapproj")
+library("leaflet")
+library("scales")
+library("magrittr")
+source("datatable_generation.R")
+```
+
+```{r data}
+data_pop <- get_pop_data()
+data_pop_revenus <- get_pop_wage_data(precision="DEP", pop_data=data_pop)
+data_revenus <- get_wage_data(precision="DEP") %>% rename(DEP=CODGEO)
+labels_revenus <- get_wage_labels()
+labels_pop <- get_pop_labels()
+revenus_categories <- colnames(data_pop_revenus)[77:100]
+population_categories <- colnames(data_pop[13:84])
+
+#Maps :
+#get vestorial file
+dept <- readOGR("datas/dpt/DEPARTEMENT.shp", layer= "DEPARTEMENT", verbose=FALSE)
+
+#fit it into a dataframe to merge values to show on map
+dept.df <- fortify(spTransform(dept, CRS("+proj=longlat +datum=WGS84")),region="CODE_DEPT")
+dept.df2<- merge(data_revenus, dept.df, by.x="DEP", by.y="id")
+
+#Map interactive
+dept.interactive=spTransform(dept, CRS("+proj=longlat +datum=WGS84"))
+```
+
+# Données
+
+## Column {.tabset .tabset-fade}
+
+### Page 1
+
+#### Chart 1
+
+#### CHart 2
+
+### Page 2
+
+### Page 3
+
+### Page 4
+
+### ...
+
+# Carte des revenus et population
+
+## Column {.sidebar} 
+
+```{r}
+  selectInput("revenu_cat", label="Catégorie de revenu", choices=revenus_categories)
+```
+<b>Sélection : </b>
+```{r}
+  renderText(labels_revenus[which(labels_revenus$VAR_ID==input$revenu_cat),]$VAR_LIB_LONG)
+  selectInput("pop_cat", label="Catégorie de population", choices=population_categories)
+```
+<b>Sélection : </b>
+```{r}
+  renderText(labels_pop[which(labels_pop$VAR_ID==input$pop_cat),]$VAR_LIB_LONG)
+  selectInput("annee_sel", label="Année", choices=c("2015","2016","2017"))
+```
+
+## Column {.tabset}
+
+### Population
+
+```{r}
+#Code ignoble en terme d'opti, mais dautre solution que d'incorporer le merge de dept.interactive dans les fonction, sinon il n'était pas updaté par shiny
+renderLeaflet({
+  
+  pal<-colorNumeric(palette = c("#003f5c","white","#d45087"), domain=(dept.interactive %>% extract2(input$pop_cat)))
+  
+  popup_info <- paste0("<strong>Departement: </strong>", 
+                    dept.interactive$NOM_DEPT," - ", dept.interactive$CODE_DEPT,
+                    "<br><strong>",input$pop_cat,":  </strong>",
+                    trunc(sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP") %>% extract2(input$pop_cat)))
+  
+  leaflet(data = sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP")) %>%
+  addTiles() %>%
+  addPolygons(fillColor = pal(magrittr::extract2(sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP"), input$pop_cat)),
+              fillOpacity=0.8,
+              color = "Black", 
+              weight = 1,
+              stroke = TRUE,
+              popup=popup_info)
+})
+```
+
+### Population (rapporté à la population du dpt)
+
+```{r}
+#Code ignoble en terme d'opti, mais dautre solution que d'incorporer le merge de dept.interactive dans les fonction, sinon il n'était pas updaté par shiny
+renderLeaflet({
+  
+  pal<-colorNumeric(palette = c("#003f5c","white","#d45087"), domain=(dept.interactive %>% extract2(input$pop_cat)))
+  
+  popup_info <- paste0("<strong>Departement: </strong>", 
+                    dept.interactive$NOM_DEPT," - ", dept.interactive$CODE_DEPT,
+                    "<br><strong>",input$pop_cat,":  </strong>",
+                    trunc(sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP") %>% extract2(input$pop_cat))/sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP") %>% extract2("P_POP"))
+  
+  leaflet(data = sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP")) %>%
+  addTiles() %>%
+  addPolygons(fillColor = pal(magrittr::extract2(sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP"), input$pop_cat)/sp::merge(dept.interactive, data_pop_revenus[which(data_pop_revenus$annee==input$annee_sel),],by.x="CODE_DEPT",by.y="DEP") %>% extract2("P_POP")),
+              fillOpacity=0.8,
+              color = "Black", 
+              weight = 1,
+              stroke = TRUE,
+              popup=popup_info)
+})
+```
+
+### Revenus 
+
+```{r}
+dept.interactive= sp::merge(dept.interactive, data_revenus,by.x="CODE_DEPT",by.y="DEP")
+renderLeaflet({
+  
+  pal<-colorNumeric(palette = c("#003f5c","white","#ffa600"), domain=(dept.interactive %>% extract2(input$revenu_cat)))
+  
+  popup_info <- paste0("<strong>Departement: </strong>", 
+                    dept.interactive$NOM_DEPT," - ", dept.interactive$CODE_DEPT,
+                    "<br><strong>",input$revenu_cat,":  </strong>",
+                    round(dept.interactive %>% extract2(input$revenu_cat), digits=2))
+  
+  leaflet(data = dept.interactive) %>%
+  addTiles() %>%
+  addPolygons(fillColor = pal(magrittr::extract2(dept.interactive, input$revenu_cat)) ,
+              fillOpacity=0.8,
+              color = "Black", 
+              weight = 1,
+              stroke = TRUE,
+              popup=popup_info)
+})
+```
+
+# Top rémunération | Cat. sociale
+
+## Row
+
+### Top 8 des meilleures catégories sociales concernant le revenu moyen
+
+```{r}
+# top 8 des catégories socio les mieux rémunérées (en moyenne)
+moyennes = data.frame(colMeans(data_revenus[c(-1,-2)])) %>%
+  rename(valeur_moyenne=1) %>% arrange(desc(valeur_moyenne))
+moyennes$categorie <- row.names(moyennes)
+moyennes <- head(moyennes,8)
+
+description <- merge(moyennes, labels_revenus, by.x="categorie", by.y="VAR_ID") %>%
+  rename(Description=VAR_LIB_LONG) %>%
+  select(-VAR_LIB) %>%
+  arrange(desc(valeur_moyenne)) 
+datatable(description)
+```
+
+### Diagramme en barre de ces catégories
+```{r}
+ggplot(aes(x =reorder(categorie, -valeur_moyenne), y=valeur_moyenne), data=moyennes) + geom_bar(stat='identity', fill = c("#ffa600","#ff7c43","#f95d6a","#d45087","#a05195","#665191","#2f4b7c","#003f5c")) +
+  labs(x="Catégorie sociale", y="Salaire net horaire moyen")
+```
+
+# Top rémunération | départements
+
+## Column {.sidebar}
+
+```{r}
+selectInput("revenu_cat2", label="Catégorie de revenu", choices=revenus_categories)
+```
+<b>Sélection : </b>
+```{r}
+renderText(labels_revenus[which(labels_revenus$VAR_ID==input$revenu_cat2),]$VAR_LIB_LONG)
+```
+
+## Row
+
+### Top 5 des départements pour lesquels la rémunération de la catégorie sélectionnée est la meilleure 
+
+```{r}
+#5 départements avec salaire le plus élevé selon catégorie pop sélectionnées
+renderDataTable({head(arrange(data_revenus[c("DEP", "LIBGEO", input$revenu_cat2 )],desc(.data[[input$revenu_cat2]])), 5)})
+```
+
+### Les 5 meilleurs départements de France pour la catégorie sélectionnée
+
+```{r}
+#départements concerné
+renderPlot({ggplot() +
+  geom_polygon(data = dept.df2 %>% add_column(in_top= (dept.df2$DEP %in% extract2(head(arrange(data_revenus,desc(.data[[input$revenu_cat2]])), 5), "DEP"))), 
+               aes(x = long, y = lat, group = group, fill = .data$in_top),
+               color = "black") + 
+  coord_map() +
+  scale_fill_manual(values = c("TRUE"="#ffa600", "FALSE"="#2f4b7c")) +
+  guides(fill = "none")+
+  theme_void()
+})
+```
+
+# Pop vs revenu
+
+## Column {.sidebar}
+
+```{r}
+  selectInput("revenu_cat3", label="Catégorie de revenu", choices=revenus_categories)
+```
+<b>Sélection : </b>
+```{r}
+  renderText(labels_revenus[which(labels_revenus$VAR_ID==input$revenu_cat3),]$VAR_LIB_LONG)
+  selectInput("pop_cat3", label="Catégorie de population",
+              choices=population_categories, 
+              selected = "C_POP15P_CS3")
+```
+<b>Sélection : </b>
+```{r}
+  renderText(labels_pop[which(labels_pop$VAR_ID==input$pop_cat3),]$VAR_LIB_LONG)
+```
+
+## Row
+
+### Pop vs revenu
+
+```{r}
+renderPlot({ggplot(data=data_pop_revenus[which(data_pop_revenus$annee==2015),])+
+  aes(x=.data[[input$pop_cat3]]/.data$P_POP, y=.data[[input$revenu_cat3]], color=.data[[input$revenu_cat3]])+
+  scale_color_gradientn(colours=c("#ffa600","#ff7c43","#f95d6a","#d45087","#a05195","#665191","#2f4b7c","#003f5c"))+
+  geom_point(size=2) +
+    labs(x= paste0("Proportion du ", 
+                  labels_pop[which(labels_pop$VAR_ID==input$pop_cat3),]$VAR_LIB_LONG),
+         y=labels_revenus[which(labels_revenus$VAR_ID==input$revenu_cat3),]$VAR_LIB) +
+    geom_smooth(method="lm")
+  })
+```
+

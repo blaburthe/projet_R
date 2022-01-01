@@ -51,6 +51,13 @@ get_pop_data <- function(){
   return(data)
 }
 
+##Returns variable labels from pop data
+get_pop_labels <- function(){
+  pop_labels <- readxl::read_xlsx("datas/base-ic-evol-struct-pop-2016.xlsx", sheet="Variables", skip=5)
+  pop_labels <- pop_labels[-c(1:12),]
+  pop_labels$VAR_ID <- paste0(substring(pop_labels$VAR_ID,0,1),substring(pop_labels$VAR_ID,4))
+  return(pop_labels)
+}
 
 ##Returns wage data
 get_wage_data <- function(precision="REG"){
@@ -58,8 +65,14 @@ get_wage_data <- function(precision="REG"){
     stop("Precision has to be either 'REG', 'DEP' or 'COM'")
   }
   #[WARNING] data is skewed; population data from 2015-17 was merged with 2019 salaries
-  data_wage <- readxl::read_xlsx(paste0("datas/base-cc-bases-tous-salaries-2019.xlsx"),sheet=precision, skip=5)
+  data_wage <- readxl::read_xlsx("datas/base-cc-bases-tous-salaries-2019.xlsx",sheet=precision, skip=5)
   return(data_wage)
+}
+
+##Returns variable labels from wage data
+get_wage_labels <- function(){
+  labels_wage<-readxl::read_xlsx("datas/base-cc-bases-tous-salaries-2019.xlsx", sheet="Variables", skip=5)
+  return(labels_wage)
 }
 
 ## Returns pop (either by dep or reg) data merged with salaries   
