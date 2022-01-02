@@ -43,12 +43,14 @@ library("rgdal")
 library("rgeos")
 library("maptools")
 library("ggplot2")
+library("highcharter")
 library("stringr")
 library("gpclib")
 library("mapproj")
 library("leaflet")
 library("scales")
 library("magrittr")
+library("DT")
 source("datatable_generation.R")
 ```
 
@@ -73,23 +75,297 @@ dept.df2<- merge(data_revenus, dept.df, by.x="DEP", by.y="id")
 dept.interactive=spTransform(dept, CRS("+proj=longlat +datum=WGS84"))
 ```
 
-# Données
+# Répartition de la population
 
 ## Column {.tabset .tabset-fade}
 
-### Page 1
+### Sexes
 
-#### Chart 1
+```{r}
+PopF2015=sum(data_pop[which(data_pop$annee==2015),]$P_POPF)
+PopH2015=sum(data_pop[which(data_pop$annee==2015),]$P_POPH)
+PopF2016=sum(data_pop[which(data_pop$annee==2016),]$P_POPF)
+PopH2016=sum(data_pop[which(data_pop$annee==2016),]$P_POPH)
+PopF2017=sum(data_pop[which(data_pop$annee==2017),]$P_POPF)
+PopH2017=sum(data_pop[which(data_pop$annee==2017),]$P_POPH)
 
-#### CHart 2
+df1 <- data.frame(supp=rep(c("2015", "2016", "2017"), each=2),
+                sexe=rep(c("Homme", "Femme"),3),
+                Nb_sexe=c(PopH2015,PopF2015,PopH2016,PopF2016,PopH2017,PopF2017))
 
-### Page 2
 
-### Page 3
+hc1 <- df1 %>%
+  hchart('column', hcaes(x = 'sexe', y = 'Nb_sexe', group = 'supp')) %>%
+  hc_colors(c("#003f5c", "#a05195", "#ffa600"))
 
-### Page 4
 
-### ...
+hc1bis <- hc1 %>%
+  hc_xAxis(title = list(text = "Sexe")) %>%
+  hc_yAxis(title = list(text = "Nombre d'habitants"))
+
+hc1final <- hc1bis %>%
+  hc_credits(
+    enabled = TRUE,
+    text = "Data Source: Insee, Recensements de la population",
+    style = list(fontSize = "15px")
+    )
+hc1final
+```
+
+### Appartenance à un ménage
+```{r}
+# Définir les options de highcharter
+options(highcharter.theme = hc_theme_smpl(tooltip = list(valueDecimals = 2)))
+
+men <- data_pop%>%
+  group_by(annee)%>%
+  summarise(sum_men=sum(P_PMEN,na.rm=T))
+
+horsmen <- data_pop%>%
+  group_by(annee)%>%
+  summarise(sum_horsmen=sum(P_PHORMEN,na.rm=T))
+
+men2015=as.numeric(men[1,2])
+horsmen2015=as.numeric(horsmen[1,2])
+
+men2016=as.numeric(men[2,2])
+horsmen2016=as.numeric(horsmen[2,2])
+
+men2017=as.numeric(men[3,2])
+horsmen2017=as.numeric(horsmen[3,2])
+
+df2 <- data.frame(supp=rep(c("2015", "2016", "2017"), each=2),
+                menn=rep(c("Au sein d'un ménage", "Hors ménage"),3),
+                Nb_men=c(men2015,horsmen2015,men2016,horsmen2016,men2017,horsmen2017))
+
+
+hc2 <- df2 %>% 
+  hchart('column', hcaes(x = 'menn', y = 'Nb_men', group = 'supp')) %>%
+  hc_colors(c("#003f5c", "#a05195", "#ffa600"))
+
+
+hc2bis <- hc2 %>%
+  hc_xAxis(title = list(text = "")) %>%
+  hc_yAxis(title = list(text = "Nombre d'habitants"))
+
+hc2final <- hc2bis %>% 
+  hc_credits(
+    enabled = TRUE, 
+    text = "Data Source: Insee, Recensements de la population",
+    style = list(fontSize = "15px")
+    )
+hc2final
+```
+
+
+### Situation Pro. 2015
+```{r}
+
+options(highcharter.theme = hc_theme_smpl(tooltip = list(valueDecimals = 2)))
+
+agricyear <- data_pop%>%
+  group_by(annee)%>%
+  summarise(Nb_agric=sum(C_POP15P_CS1,na.rm=T))
+
+artisanyear <- data_pop%>%
+  group_by(annee)%>%
+  summarise(Nb_artisan=sum(C_POP15P_CS2,na.rm=T))
+
+cadreyear <- data_pop%>%
+  group_by(annee)%>%
+  summarise(Nb_cadre=sum(C_POP15P_CS3,na.rm=T))
+
+profintyear <- data_pop%>%
+  group_by(annee)%>%
+  summarise(Nb_profint=sum(C_POP15P_CS4,na.rm=T))
+
+employeyear <- data_pop%>%
+  group_by(annee)%>%
+  summarise(Nb_employe=sum(C_POP15P_CS5,na.rm=T))
+
+ouvrieryear <- data_pop%>%
+  group_by(annee)%>%
+  summarise(Nb_ouvrier=sum(C_POP15P_CS6,na.rm=T))
+
+retraiteyear <- data_pop%>%
+  group_by(annee)%>%
+  summarise(Nb_retraite=sum(C_POP15P_CS7,na.rm=T))
+
+sansactyear <- data_pop%>%
+  group_by(annee
+           )%>%
+  summarise(Nb_sansact=sum(C_POP15P_CS8),na.rm=T)
+
+valeurs4 = c(agricyear[1,2],artisanyear[1,2],cadreyear[1,2],profintyear[1,2],employeyear[1,2],ouvrieryear[1,2],retraiteyear[1,2],sansactyear[1,2])
+prop4 = as.numeric(valeurs4) / sum(as.numeric(valeurs4))
+
+df4 <- data.frame(
+        x = c(0, 1, 2, 3, 4, 5, 6, 7),
+        y = prop4,
+        names = as.factor(c("Agriculteurs ", "Artisans", "Cadres", "Professions intermédiaires", "Employés", "Ouvriers", "Retraités", "Sans activités professionnelles"))
+)
+
+
+hc4 <- highchart() %>%
+  hc_chart(type = "scatter", polar = TRUE) %>%
+  hc_xAxis(categories = df4$names) %>%
+  hc_series(list(
+     name = "Situation professionnelle de la population en 2015",
+     data = df4$y,
+     colorByPoint = TRUE,
+     type = "scatter",
+     colors = c("#003f5c", "#2f4b7c", "#665191", "#a05195", "#d45087", "#f95d6a", "#ff7c43", "#ffa600"),
+     showInLegend = TRUE
+   )
+   )
+
+hc4final <- hc4 %>%
+  hc_subtitle(
+    text = "proportions d'agriculteurs, artisans , cadres, professions intermédiaires, employés, ouvriers, retraités et sans activités professionnelles en 2015",
+    style = list(fontWeight = "bold"),
+    align = "center"
+    ) %>%
+  hc_credits(
+    enabled = TRUE,
+    text = "Data Source: Insee, Recensements de la population",
+    style = list(fontSize = "15px")
+    )
+hc4final
+```
+
+### Situation Pro. 2016
+```{r}
+
+valeurs5 = c(agricyear[2,2],artisanyear[2,2],cadreyear[2,2],profintyear[2,2],employeyear[2,2],ouvrieryear[2,2],retraiteyear[2,2],sansactyear[2,2])
+prop5 = as.numeric(valeurs5) / sum(as.numeric(valeurs5))
+
+df5 <- data.frame(
+        x = c(0, 1, 2, 3, 4, 5, 6, 7),
+        y = prop5,
+        name = as.factor(c("Agriculteurs ", "Artisans", "Cadres", "Professions intermédiaires", "Employés", "Ouvriers", "Retraités", "Sans activités professionnelles"))
+)
+
+
+hc5 <- highchart() %>%
+  hc_chart(type = "line", polar = TRUE) %>%
+  hc_xAxis(categories = df5$name) %>%
+  hc_series( list(
+    name = "Situation professionnelle de la population en 2016",
+    data = df5$y,
+    pointPlacement = "on",
+    type = "line",
+    color = "#003f5c",
+    showInLegend = TRUE
+    ))
+
+hc5final <- hc5 %>%
+  hc_subtitle(
+    text = "proportions d'agriculteurs, artisans , cadres, professions intermédiaires, employés, ouvriers, retraités et sans activités professionnelles en 2016",
+    style = list(fontWeight = "bold"),
+    align = "center"
+    ) %>%
+  hc_credits(
+    enabled = TRUE,
+    text = "Data Source: Insee, Recensements de la population",
+    style = list(fontSize = "15px")
+    )
+hc5final
+```
+
+### Situation Pro. 2017
+```{r}
+valeurs6 = c(agricyear[3,2],artisanyear[3,2],cadreyear[3,2],profintyear[3,2],employeyear[3,2],ouvrieryear[3,2],retraiteyear[3,2],sansactyear[3,2])
+prop6 = as.numeric(valeurs6) / sum(as.numeric(valeurs6))
+
+df6 <- data.frame(
+        x = c(0, 1, 2, 3, 4, 5, 6, 7),
+        y = prop6,
+        name = as.factor(c("Agriculteurs ", "Artisans", "Cadres", "Professions intermédiaires", "Employés", "Ouvriers", "Retraités", "Sans activités professionnelles"))
+)
+
+
+hc6 <- highchart() %>%
+  hc_chart(type = "column", polar = TRUE) %>%
+  hc_xAxis(categories = df6$name) %>%
+  hc_series(list(
+     name = "Situation professionnelle de la population en 2017",
+     data = df6$y,
+     colorByPoint = TRUE,
+     type = "column",
+     colors = c("#003f5c", "#2f4b7c", "#665191", "#a05195", "#d45087", "#f95d6a", "#ff7c43", "#ffa600"),
+     showInLegend = TRUE
+   )
+   )
+
+hc6final <- hc6 %>%
+  hc_subtitle(
+    text = "proportions d'agriculteurs, artisans , cadres, professions intermédiaires, employés, ouvriers, retraités et sans activités professionnelles en 2017",
+    style = list(fontWeight = "bold"),
+    align = "center"
+    ) %>%
+  hc_credits(
+    enabled = TRUE,
+    text = "Data Source: Insee, Recensements de la population",
+    style = list(fontSize = "15px")
+    )
+hc6final
+```
+
+### Nationnalité
+
+```{r}
+popfra <- data_pop%>%
+  group_by(annee)%>%
+  summarise(popnatfra=sum(P_POP_FR,na.rm=T))
+
+popetr <- data_pop%>%
+  group_by(annee)%>%
+  summarise(popnatetr=sum(P_POP_ETR,na.rm=T))
+
+popimm <- data_pop%>%
+  group_by(annee)%>%
+  summarise(popnatimm=sum(P_POP_IMM,na.rm=T))
+
+pop_fra15=as.numeric(popfra[1,2])
+pop_fra16=as.numeric(popfra[2,2])
+pop_fra17=as.numeric(popfra[3,2])
+pop_etr15=as.numeric(popetr[1,2])
+pop_etr16=as.numeric(popetr[2,2])
+pop_etr17=as.numeric(popetr[3,2])
+pop_imm15=as.numeric(popimm[1,2])
+pop_imm16=as.numeric(popimm[2,2])
+pop_imm17=as.numeric(popimm[3,2])
+
+df8 <- data.frame(supp=rep(c("2015", "2016", "2017"), each=3),
+                lab=rep(c("Population française", "Population étrangère", "Population immigrée"),3),
+                Nb_nat=c(pop_fra15,pop_etr15,pop_imm15,pop_fra16,pop_etr16,pop_imm16,pop_fra17,pop_etr17,pop_imm17))
+
+
+
+hc8 <- df8 %>% 
+  hchart('bar', hcaes(x = 'lab', y = 'Nb_nat', group = 'supp')) %>%
+  hc_colors(c("#003f5c", "#a05195", "#ffa600"))
+
+
+hc8bis <- hc8 %>%
+  hc_xAxis(title = list(text = "Nationalité")) %>%
+  hc_yAxis(title = list(text = "Nombre d'habitants"))
+
+
+hc8final <- hc8bis %>%
+  hc_title(
+    text = "Evolution du nombre d'habitants en fonction de leur nationalité",
+    style = list(fontWeight = "bold", fontSize = "25px"),
+    align = "center"
+    ) %>% 
+  hc_credits(
+    enabled = TRUE, 
+    text = "Data Source: Insee, Recensements de la population",
+    style = list(fontSize = "15px")
+    )
+hc8final
+
+```
 
 # Carte des revenus et population
 
@@ -276,7 +552,7 @@ renderPlot({ggplot(data=data_pop_revenus[which(data_pop_revenus$annee==2015),])+
     labs(x= paste0("Proportion du ", 
                   labels_pop[which(labels_pop$VAR_ID==input$pop_cat3),]$VAR_LIB_LONG),
          y=labels_revenus[which(labels_revenus$VAR_ID==input$revenu_cat3),]$VAR_LIB) +
-    geom_smooth(method="lm")
+    geom_smooth(color="black")
   })
 ```
 
